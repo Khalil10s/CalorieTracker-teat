@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { LocalUser, initAuth, onAuthChange } from '../services/localAuthService';
-import { getProfile, saveProfile } from '../services/storageService';
+import { getProfile, saveProfile } from '../services/firestoreService';
 import { UserProfile, DEFAULT_PROFILE } from '../types';
 
 interface AuthContextType {
@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const restored = await initAuth();
       setUser(restored);
       if (restored) {
-        let p = await getProfile();
+        let p = await getProfile(restored.uid);
         if (!p) {
           p = {
             uid: restored.uid,
@@ -50,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthChange(async (localUser) => {
       setUser(localUser);
       if (localUser) {
-        let p = await getProfile();
+        let p = await getProfile(localUser.uid);
         if (!p) {
           p = {
             uid: localUser.uid,
@@ -70,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfile = async () => {
     if (user) {
-      const p = await getProfile();
+      const p = await getProfile(user.uid);
       setProfile(p);
     }
   };

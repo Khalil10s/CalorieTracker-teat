@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import { addMeal, addFavorite, removeFavorite, isFavorite } from '../services/storageService';
+import { addMeal } from '../services/firestoreService';
 import { FoodItem, MealType } from '../types';
 import { FONTS, SPACING, BORDER_RADIUS } from '../utils/constants';
 import { useTheme } from '../contexts/ThemeContext';

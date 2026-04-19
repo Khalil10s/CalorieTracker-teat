@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import { getMealsForDate } from '../services/storageService';
+import { getMealsForDate } from '../services/firestoreService';
 import { MealEntry } from '../types';
 import MealRow from '../components/MealRow';
 import { FONTS, SPACING, BORDER_RADIUS } from '../utils/constants';

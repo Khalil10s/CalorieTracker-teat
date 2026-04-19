@@ -14,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   getMealsForDate, deleteMeal,
   getYesterdayMeals, repeatYesterdayMeals, repeatLastMeal, quickAddCalories,
-} from '../services/storageService';
+} from '../services/firestoreService';
 import { MealEntry, MealType, MEAL_TYPES } from '../types';
 import CalorieRing from '../components/CalorieRing';
 import MealRow from '../components/MealRow';
