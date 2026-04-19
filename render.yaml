@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: CalorieTracker
+    name: Aska
     runtime: static
     buildCommand: npm install && npx expo export --platform web
     staticPublishPath: ./dist

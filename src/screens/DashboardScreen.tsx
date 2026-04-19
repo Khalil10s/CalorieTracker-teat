@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getMealsForDate, deleteMeal,
+  getYesterdayMeals, repeatYesterdayMeals, repeatLastMeal, quickAddCalories,
 } from '../services/storageService';
 import { MealEntry, MealType, MEAL_TYPES } from '../types';
 import CalorieRing from '../components/CalorieRing';
@@ -32,13 +33,18 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
   const styles = makeStyles(COLORS);
   const { user, profile } = useAuth();
   const [meals, setMeals] = useState<MealEntry[]>([]);
+  const [yesterdayCount, setYesterdayCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      const data = await getMealsForDate(new Date(), user.uid);
+      const [data, yesterday] = await Promise.all([
+        getMealsForDate(new Date(), user.uid),
+        getYesterdayMeals(user.uid),
+      ]);
       setMeals(data);
+      setYesterdayCount(yesterday.length);
     } catch (err) {
       console.error('Failed to load', err);
     }
@@ -47,6 +53,29 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+
+  const handleQuickAdd = async (amount: number) => {
+    if (!user) return;
+    await quickAddCalories(amount, user.uid);
+    await load();
+  };
+
+  const handleRepeatYesterday = async () => {
+    if (!user || yesterdayCount === 0) return;
+    const count = await repeatYesterdayMeals(user.uid);
+    Alert.alert('Done', `Logged ${count} meals from yesterday.`);
+    await load();
+  };
+
+  const handleRepeatLastMeal = async () => {
+    if (!user) return;
+    const result = await repeatLastMeal(user.uid);
+    if (result) {
+      await load();
+    } else {
+      Alert.alert('No Meals', 'No previous meals found to repeat.');
+    }
+  };
 
   const handleDelete = (meal: MealEntry) => {
     Alert.alert('Delete', `Remove ${meal.foodName}?`, [
@@ -70,6 +99,24 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
 
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+  const hour = today.getHours();
+  const progress = calGoal > 0 ? totalCalories / calGoal : 0;
+  const remaining = Math.max(calGoal - Math.round(totalCalories), 0);
+  const firstName = profile?.displayName?.split(' ')[0] || '';
+
+  // Motivational message based on time + progress
+  let motivation = '';
+  if (progress >= 1) {
+    motivation = `Excellent job${firstName ? `, ${firstName}` : ''}! You've hit your calorie goal for today! 🎉`;
+  } else if (progress >= 0.8) {
+    motivation = `Almost there${firstName ? `, ${firstName}` : ''}! Just ${remaining} kcal left. Great job! 🔥`;
+  } else if (hour < 12) {
+    motivation = `Good morning${firstName ? `, ${firstName}` : ''}! You have ${remaining} kcal to enjoy today. You got this! 💪`;
+  } else if (hour < 17) {
+    motivation = `Good job${firstName ? `, ${firstName}` : ''}, keep it up! ${remaining} kcal remaining. 👏`;
+  } else {
+    motivation = `Good evening${firstName ? `, ${firstName}` : ''}! ${remaining} kcal left to finish strong tonight. 🌙`;
+  }
 
   return (
     <ScrollView
@@ -84,7 +131,17 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
         end={{ x: 1, y: 1 }}
         style={styles.heroGradient}
       >
-        <Text style={styles.heroTitle}>CalorieTracker</Text>
+        <View style={styles.heroTopRow}>
+          <View style={{ width: 36 }} />
+          <Text style={styles.heroTitle}>Aska</Text>
+          <TouchableOpacity
+            style={styles.heroAddBtn}
+            onPress={() => onSearch('snack')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add" size={26} color="#fff" />
+          </TouchableOpacity>
+        </View>
 
         {/* Ring + Eaten / Burned */}
         <View style={styles.ringRow}>
@@ -132,6 +189,46 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
       <View style={styles.dateRow}>
         <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
         <Text style={styles.dateLabel}>TODAY, {dateStr}</Text>
+      </View>
+
+      {/* ── QUICK ACTIONS ── */}
+      <View style={styles.quickSection}>
+        <Text style={styles.quickTitle}>QUICK ACTIONS</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickRow}>
+          {[100, 250, 500].map((amt) => (
+            <TouchableOpacity
+              key={amt}
+              style={styles.quickChip}
+              onPress={() => handleQuickAdd(amt)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="flash-outline" size={16} color={COLORS.primary} />
+              <Text style={styles.quickChipText}>+{amt} kcal</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={[styles.quickChip, yesterdayCount === 0 && { opacity: 0.4 }]}
+            onPress={handleRepeatYesterday}
+            activeOpacity={0.7}
+            disabled={yesterdayCount === 0}
+          >
+            <Ionicons name="repeat-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickChipText}>Yesterday{yesterdayCount > 0 ? ` (${yesterdayCount})` : ''}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickChip}
+            onPress={handleRepeatLastMeal}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-redo-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickChipText}>Last Meal</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+
+      {/* ── MOTIVATIONAL MESSAGE ── */}
+      <View style={styles.motivationCard}>
+        <Text style={styles.motivationText}>{motivation}</Text>
       </View>
 
       {/* ── DIARY: Meal Sections ── */}
@@ -199,11 +296,26 @@ const makeStyles = (COLORS: any) => StyleSheet.create({
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
   heroTitle: {
     fontSize: FONTS.sizes.lg,
     fontWeight: '700',
     color: '#fff',
-    marginBottom: SPACING.md,
+  },
+  heroAddBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ringRow: {
     flexDirection: 'row',
@@ -238,6 +350,28 @@ const makeStyles = (COLORS: any) => StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(255,255,255,0.85)',
     letterSpacing: 0.5,
+  },
+
+  // ── Motivational message ──
+  motivationCard: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  motivationText: {
+    fontSize: FONTS.sizes.sm,
+    fontWeight: '600',
+    color: COLORS.text,
+    lineHeight: 20,
+    textAlign: 'center',
   },
 
   // ── Macro bars ──
@@ -298,6 +432,40 @@ const makeStyles = (COLORS: any) => StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textSecondary,
     letterSpacing: 1,
+  },
+
+  // ── Quick actions ──
+  quickSection: {
+    marginBottom: SPACING.md,
+  },
+  quickTitle: {
+    fontSize: FONTS.sizes.xs,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.xl,
+  },
+  quickRow: {
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  quickChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  quickChipText: {
+    fontSize: FONTS.sizes.sm,
+    fontWeight: '600',
+    color: COLORS.text,
   },
 
   // ── Meal diary sections ──

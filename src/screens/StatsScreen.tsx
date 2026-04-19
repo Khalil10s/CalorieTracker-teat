@@ -1,13 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, Alert,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getMealsForRange, getWeights,
-  getRecentFoodsRanked, getFavorites, getYesterdayMeals,
-  repeatYesterdayMeals, repeatLastMeal, quickAddCalories, addMeal,
+  getRecentFoodsRanked, getFavorites, addMeal,
 } from '../services/storageService';
 import { MealEntry, MealType, FoodItem, WeightEntry } from '../types';
 import { FONTS, SPACING, BORDER_RADIUS } from '../utils/constants';
@@ -27,7 +26,6 @@ export default function StatsScreen() {
   const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [recentFoods, setRecentFoods] = useState<MealEntry[]>([]);
   const [favorites, setFavorites] = useState<FoodItem[]>([]);
-  const [yesterdayCount, setYesterdayCount] = useState(0);
 
   const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
 
@@ -36,45 +34,19 @@ export default function StatsScreen() {
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - days + 1);
-    const [m, w, recent, favs, yesterday] = await Promise.all([
+    const [m, w, recent, favs] = await Promise.all([
       getMealsForRange(start, end, user.uid),
       getWeights(user.uid, days),
       getRecentFoodsRanked(user.uid, 10),
       getFavorites(user.uid),
-      getYesterdayMeals(user.uid),
     ]);
     setMeals(m);
     setWeights(w);
     setRecentFoods(recent);
     setFavorites(favs);
-    setYesterdayCount(yesterday.length);
   }, [user, days]);
 
   useEffect(() => { load(); }, [load]);
-
-  // Quick actions
-  const handleQuickAdd = async (amount: number) => {
-    if (!user) return;
-    await quickAddCalories(amount, user.uid);
-    await load();
-  };
-
-  const handleRepeatYesterday = async () => {
-    if (!user || yesterdayCount === 0) return;
-    const count = await repeatYesterdayMeals(user.uid);
-    Alert.alert('Done', `Logged ${count} meals from yesterday.`);
-    await load();
-  };
-
-  const handleRepeatLastMeal = async () => {
-    if (!user) return;
-    const result = await repeatLastMeal(user.uid);
-    if (result) {
-      await load();
-    } else {
-      Alert.alert('No Meals', 'No previous meals found to repeat.');
-    }
-  };
 
   const instantLog = async (entry: { foodName: string; calories: number; protein: number; carbs: number; fat: number; servingSize: string; mealType?: MealType }) => {
     if (!user) return;
@@ -127,41 +99,6 @@ export default function StatsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Progress</Text>
-
-      {/* ── QUICK ACTIONS ── */}
-      <View style={styles.quickSection}>
-        <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {[100, 250, 500].map((amt) => (
-            <TouchableOpacity
-              key={amt}
-              style={styles.quickChip}
-              onPress={() => handleQuickAdd(amt)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="flash-outline" size={16} color={COLORS.primary} />
-              <Text style={styles.quickChipText}>+{amt} kcal</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={[styles.quickChip, yesterdayCount === 0 && { opacity: 0.4 }]}
-            onPress={handleRepeatYesterday}
-            activeOpacity={0.7}
-            disabled={yesterdayCount === 0}
-          >
-            <Ionicons name="repeat-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.quickChipText}>Yesterday{yesterdayCount > 0 ? ` (${yesterdayCount})` : ''}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickChip}
-            onPress={handleRepeatLastMeal}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-redo-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.quickChipText}>Last Meal</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
 
       {/* ── RECENT FOODS ── */}
       {recentFoods.length > 0 && (
@@ -296,6 +233,7 @@ const makeStyles = (COLORS: any) => StyleSheet.create({
   quickSection: {
     marginBottom: SPACING.lg,
   },
+  // Quick chip styles kept for recent/favorites
   sectionLabel: {
     fontSize: FONTS.sizes.xs,
     fontWeight: '700',

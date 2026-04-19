@@ -9,7 +9,7 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 
 function RootNavigator() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, refreshProfile } = useAuth();
   const { colors: COLORS, mode } = useTheme();
   const [showRegister, setShowRegister] = useState(false);
 
@@ -30,7 +30,7 @@ function RootNavigator() {
   }
 
   if (profile && !profile.hasCompletedOnboarding) {
-    return <OnboardingScreen />;
+    return <OnboardingScreen onComplete={() => refreshProfile()} />;
   }
 
   return <AppNavigator />;

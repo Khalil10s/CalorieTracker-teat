@@ -46,7 +46,7 @@ export default function LoginScreen({ onNavigateRegister }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>CalorieTracker</Text>
+        <Text style={styles.title}>Aska</Text>
         <Text style={styles.subtitle}>Track your nutrition, reach your goals</Text>
       </View>
 

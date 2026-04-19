@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "CalorieTracker",
-    "slug": "CalorieTracker",
+    "name": "Aska",
+    "slug": "Aska",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,9 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aska.app"
     },
     "android": {
+      "package": "com.aska.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -25,6 +27,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "13fd34e4-90c2-4328-8b0f-b7ab33d1dfd0"
+      }
     }
   }
 }

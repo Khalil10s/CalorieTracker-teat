@@ -65,6 +65,10 @@ export interface RecipeIngredient {
 
 export type WeightUnit = 'kg' | 'lbs';
 
+export type FitnessGoal = 'lose_weight' | 'build_muscle' | 'eat_healthy';
+export type Gender = 'male' | 'female' | 'other';
+export type ActivityLevel = 'sedentary' | 'partly_active' | 'active' | 'exercise_regularly';
+
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -80,6 +84,15 @@ export interface UserProfile {
   profilePhoto?: string; // base64 uri
   reminderEnabled?: boolean;
   reminderTime?: string; // HH:MM
+  // Onboarding fields
+  fitnessGoal?: FitnessGoal;
+  gender?: Gender;
+  age?: number;
+  currentWeight?: number;
+  goalWeight?: number;
+  importantTo?: string[];
+  challenges?: string[];
+  activityLevel?: ActivityLevel;
 }
 
 export interface DailyLog {

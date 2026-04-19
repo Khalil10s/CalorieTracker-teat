@@ -149,7 +149,7 @@ export default function SettingsScreen({ onNavigateBMI, onNavigateRecipes, onNav
       <TouchableOpacity style={styles.linkRow} onPress={async () => {
         try {
           const csv = await exportAllDataCSV();
-          await Share.share({ message: csv, title: 'CalorieTracker Export' });
+          await Share.share({ message: csv, title: 'Aska Export' });
         } catch { Alert.alert('Error', 'Failed to export data.'); }
       }}>
         <Ionicons name="download-outline" size={22} color={COLORS.primary} />
