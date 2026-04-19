@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>Scan with Expo Go</title></head>
+<body style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#111;color:#fff;font-family:sans-serif;padding:20px">
+<h2>1. Scan inside EXPO GO app</h2>
+<div id="qr1" style="background:#fff;padding:32px;border-radius:16px;margin:16px"></div>
+<p style="font-size:18px">exp://192.168.32.6:8081</p>
+<hr style="width:80%;border-color:#333;margin:24px 0">
+<h2>2. OR scan with Camera for Safari</h2>
+<div id="qr2" style="background:#fff;padding:32px;border-radius:16px;margin:16px"></div>
+<p style="font-size:18px">http://192.168.32.6:8081</p>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+var q1=qrcode(0,'M');q1.addData('exp://192.168.32.6:8081');q1.make();
+document.getElementById('qr1').innerHTML=q1.createSvgTag({cellSize:8,margin:0});
+var q2=qrcode(0,'M');q2.addData('http://192.168.32.6:8081');q2.make();
+document.getElementById('qr2').innerHTML=q2.createSvgTag({cellSize:8,margin:0});
+</script>
+</body>
+</html>
