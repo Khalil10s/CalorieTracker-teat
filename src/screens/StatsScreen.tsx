@@ -4,9 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-  getMealsForRange, getWeights,
-  getRecentFoodsRanked, getFavorites, addMeal,
-} from '../services/firestoreService';
+import { getMealsForRange, getWeights, getRecentFoodsRanked, getFavorites, addMeal } from '../services/firestoreService';
 import { MealEntry, MealType, FoodItem, WeightEntry } from '../types';
 import { FONTS, SPACING, BORDER_RADIUS } from '../utils/constants';
 import { useTheme } from '../contexts/ThemeContext';
