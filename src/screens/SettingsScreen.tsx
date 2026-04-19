@@ -275,7 +275,7 @@ const makeStyles = (COLORS: any) => StyleSheet.create({
   stickyFooter: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.sm,
-    paddingBottom: 34,
+    paddingBottom: SPACING.sm,
     backgroundColor: COLORS.background,
     borderTopWidth: 0.5,
     borderTopColor: COLORS.separator,
