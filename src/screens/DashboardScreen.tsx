@@ -139,6 +139,26 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
         </TouchableOpacity>
       </View>
 
+      {/* ── CALORIE SUMMARY ── */}
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionTitle}>
+          <Text style={{ fontWeight: '800' }}>CALORIE</Text> SUMMARY
+        </Text>
+        <View style={styles.divider} />
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRing}>
+            <CalorieRing consumed={Math.round(totalCalories)} goal={calGoal} size={150} strokeWidth={12} />
+          </View>
+          <View style={styles.summaryMacros}>
+            <MacroBar label="Protein" current={totalProtein} goal={profile?.proteinGoal || 150} color={COLORS.protein} />
+            <View style={{ height: SPACING.md }} />
+            <MacroBar label="Carbs" current={totalCarbs} goal={profile?.carbsGoal || 250} color={COLORS.carbs} />
+            <View style={{ height: SPACING.md }} />
+            <MacroBar label="Fat" current={totalFat} goal={profile?.fatGoal || 65} color={COLORS.fat} />
+          </View>
+        </View>
+      </View>
+
       {/* ── RECENT FOODS ── */}
       {recentFoods.length > 0 && (
         <View style={styles.sectionBlock}>
@@ -219,26 +239,6 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
               <Text style={styles.quickCalText}>+{amt} <Text style={styles.quickCalUnit}>kcal</Text></Text>
             </TouchableOpacity>
           ))}
-        </View>
-      </View>
-
-      {/* ── CALORIE SUMMARY ── */}
-      <View style={styles.sectionBlock}>
-        <Text style={styles.sectionTitle}>
-          <Text style={{ fontWeight: '800' }}>CALORIE</Text> SUMMARY
-        </Text>
-        <View style={styles.divider} />
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRing}>
-            <CalorieRing consumed={Math.round(totalCalories)} goal={calGoal} size={150} strokeWidth={12} />
-          </View>
-          <View style={styles.summaryMacros}>
-            <MacroBar label="Protein" current={totalProtein} goal={profile?.proteinGoal || 150} color={COLORS.protein} />
-            <View style={{ height: SPACING.md }} />
-            <MacroBar label="Carbs" current={totalCarbs} goal={profile?.carbsGoal || 250} color={COLORS.carbs} />
-            <View style={{ height: SPACING.md }} />
-            <MacroBar label="Fat" current={totalFat} goal={profile?.fatGoal || 65} color={COLORS.fat} />
-          </View>
         </View>
       </View>
 
