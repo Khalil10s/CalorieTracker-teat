@@ -8,50 +8,37 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  getMealsForDate, deleteMeal, addMeal,
-  getRecentFoodsRanked, getFavorites, getYesterdayMeals,
-  repeatYesterdayMeals, repeatLastMeal, quickAddCalories,
+  getMealsForDate, deleteMeal,
 } from '../services/storageService';
-import { MealEntry, MealType, FoodItem, MEAL_TYPES } from '../types';
+import { MealEntry, MealType, MEAL_TYPES } from '../types';
 import CalorieRing from '../components/CalorieRing';
-import MacroCircle from '../components/MacroCircle';
 import MealRow from '../components/MealRow';
 import { FONTS, SPACING, BORDER_RADIUS } from '../utils/constants';
 import { useTheme } from '../contexts/ThemeContext';
-import { generateId } from '../utils/helpers';
 
 interface Props {
   onNavigateAddMeal: (mealType: MealType) => void;
   onEditMeal: (meal: MealEntry, mealType: MealType) => void;
   onSearch: (mealType: MealType) => void;
+  onNavigateStats?: () => void;
 }
 
-export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearch }: Props) {
+export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearch, onNavigateStats }: Props) {
   const COLORS = useTheme().colors;
   const styles = makeStyles(COLORS);
   const { user, profile } = useAuth();
   const [meals, setMeals] = useState<MealEntry[]>([]);
-  const [recentFoods, setRecentFoods] = useState<MealEntry[]>([]);
-  const [favorites, setFavorites] = useState<FoodItem[]>([]);
-  const [yesterdayCount, setYesterdayCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      const [data, recent, favs, yesterday] = await Promise.all([
-        getMealsForDate(new Date(), user.uid),
-        getRecentFoodsRanked(user.uid, 10),
-        getFavorites(user.uid),
-        getYesterdayMeals(user.uid),
-      ]);
+      const data = await getMealsForDate(new Date(), user.uid);
       setMeals(data);
-      setRecentFoods(recent);
-      setFavorites(favs);
-      setYesterdayCount(yesterday.length);
     } catch (err) {
       console.error('Failed to load', err);
     }
@@ -60,52 +47,6 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
-
-  // 1-TAP: Re-log a recent or favorite food instantly
-  const instantLog = async (entry: { foodName: string; calories: number; protein: number; carbs: number; fat: number; servingSize: string; mealType?: MealType }) => {
-    if (!user) return;
-    const now = Date.now();
-    await addMeal({
-      id: generateId(),
-      foodName: entry.foodName,
-      calories: entry.calories,
-      protein: entry.protein,
-      carbs: entry.carbs,
-      fat: entry.fat,
-      servingSize: entry.servingSize,
-      quantity: 1,
-      mealType: entry.mealType || 'snack',
-      date: now,
-      createdAt: now,
-    }, user.uid);
-    await load();
-  };
-
-  // Repeat yesterday
-  const handleRepeatYesterday = async () => {
-    if (!user || yesterdayCount === 0) return;
-    const count = await repeatYesterdayMeals(user.uid);
-    Alert.alert('Done', `Logged ${count} meals from yesterday.`);
-    await load();
-  };
-
-  // Quick add calories
-  const handleQuickAdd = async (amount: number) => {
-    if (!user) return;
-    await quickAddCalories(amount, user.uid);
-    await load();
-  };
-
-  // Repeat last meal
-  const handleRepeatLastMeal = async () => {
-    if (!user) return;
-    const result = await repeatLastMeal(user.uid);
-    if (result) {
-      await load();
-    } else {
-      Alert.alert('No Meals', 'No previous meals found to repeat.');
-    }
-  };
 
   const handleDelete = (meal: MealEntry) => {
     Alert.alert('Delete', `Remove ${meal.foodName}?`, [
@@ -122,25 +63,75 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
   const totalCarbs = meals.reduce((s, m) => s + m.carbs * m.quantity, 0);
   const totalFat = meals.reduce((s, m) => s + m.fat * m.quantity, 0);
   const calGoal = profile?.calorieGoal || 2000;
-  const remaining = calGoal - Math.round(totalCalories);
+
+  const proteinGoal = profile?.proteinGoal || 150;
+  const carbsGoal = profile?.carbsGoal || 250;
+  const fatGoal = profile?.fatGoal || 65;
+
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
     >
-      {/* ── HEADER: Date ── */}
-      <Text style={styles.dateLabel}>Today</Text>
+      {/* ── GREEN GRADIENT HEADER ── */}
+      <LinearGradient
+        colors={['#3BB89E', '#7BC67E', '#B8C466']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.heroGradient}
+      >
+        <Text style={styles.heroTitle}>CalorieTracker</Text>
 
-      {/* ── CALORIE RING + MACRO CIRCLES ── */}
-      <View style={styles.summaryCard}>
-        <CalorieRing consumed={Math.round(totalCalories)} goal={calGoal} size={160} strokeWidth={12} />
-        <View style={styles.macroRow}>
-          <MacroCircle label="Carbs" current={totalCarbs} goal={profile?.carbsGoal || 250} color={COLORS.carbs} />
-          <MacroCircle label="Protein" current={totalProtein} goal={profile?.proteinGoal || 150} color={COLORS.protein} />
-          <MacroCircle label="Fat" current={totalFat} goal={profile?.fatGoal || 65} color={COLORS.fat} />
+        {/* Ring + Eaten / Burned */}
+        <View style={styles.ringRow}>
+          <View style={styles.sideLabel}>
+            <Text style={styles.sideValue}>{Math.round(totalCalories)}</Text>
+            <Text style={styles.sideLabelText}>EATEN</Text>
+          </View>
+
+          <CalorieRing consumed={Math.round(totalCalories)} goal={calGoal} size={170} strokeWidth={12} lightText />
+
+          <View style={styles.sideLabel}>
+            <Text style={styles.sideValue}>0</Text>
+            <Text style={styles.sideLabelText}>BURNED</Text>
+          </View>
         </View>
+
+        {/* SEE STATS link */}
+        <TouchableOpacity style={styles.seeStats} onPress={onNavigateStats} activeOpacity={0.7}>
+          <Text style={styles.seeStatsText}>SEE STATS</Text>
+          <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.85)" />
+        </TouchableOpacity>
+      </LinearGradient>
+
+      {/* ── MACRO PROGRESS BARS ── */}
+      <View style={styles.macroSection}>
+        {[
+          { label: 'Carbs', current: Math.round(totalCarbs), goal: carbsGoal, color: COLORS.carbs },
+          { label: 'Protein', current: Math.round(totalProtein), goal: proteinGoal, color: COLORS.protein },
+          { label: 'Fat', current: Math.round(totalFat), goal: fatGoal, color: COLORS.fat },
+        ].map(({ label, current, goal, color }) => {
+          const progress = goal > 0 ? Math.min(current / goal, 1) : 0;
+          return (
+            <View key={label} style={styles.macroItem}>
+              <Text style={styles.macroLabel}>{label}</Text>
+              <View style={styles.macroBarTrack}>
+                <View style={[styles.macroBarFill, { width: `${progress * 100}%`, backgroundColor: color }]} />
+              </View>
+              <Text style={styles.macroValues}>{current}/{goal}g</Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* ── DATE HEADER ── */}
+      <View style={styles.dateRow}>
+        <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
+        <Text style={styles.dateLabel}>TODAY, {dateStr}</Text>
       </View>
 
       {/* ── DIARY: Meal Sections ── */}
@@ -187,92 +178,6 @@ export default function DashboardScreen({ onNavigateAddMeal, onEditMeal, onSearc
           </View>
         );
       })}
-
-      {/* ── QUICK ACTIONS ── */}
-      <View style={styles.quickSection}>
-        <Text style={styles.quickTitle}>QUICK ACTIONS</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickRow}>
-          {/* Quick add chips */}
-          {[100, 250, 500].map((amt) => (
-            <TouchableOpacity
-              key={amt}
-              style={styles.quickChip}
-              onPress={() => handleQuickAdd(amt)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="flash-outline" size={16} color={COLORS.primary} />
-              <Text style={styles.quickChipText}>+{amt} kcal</Text>
-            </TouchableOpacity>
-          ))}
-          {/* Repeat yesterday */}
-          <TouchableOpacity
-            style={[styles.quickChip, yesterdayCount === 0 && { opacity: 0.4 }]}
-            onPress={handleRepeatYesterday}
-            activeOpacity={0.7}
-            disabled={yesterdayCount === 0}
-          >
-            <Ionicons name="repeat-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.quickChipText}>Yesterday{yesterdayCount > 0 ? ` (${yesterdayCount})` : ''}</Text>
-          </TouchableOpacity>
-          {/* Repeat last meal */}
-          <TouchableOpacity
-            style={styles.quickChip}
-            onPress={handleRepeatLastMeal}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-redo-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.quickChipText}>Last Meal</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-
-      {/* ── RECENT FOODS (horizontal) ── */}
-      {recentFoods.length > 0 && (
-        <View style={styles.quickSection}>
-          <Text style={styles.quickTitle}>RECENT</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>
-            {recentFoods.slice(0, 12).map((item, i) => (
-              <TouchableOpacity
-                key={`${item.id}_${i}`}
-                style={styles.recentChip}
-                onPress={() => instantLog(item)}
-                onLongPress={() => onEditMeal(item, item.mealType || 'snack')}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.recentChipName} numberOfLines={1}>{item.foodName}</Text>
-                <Text style={styles.recentChipCal}>{Math.round(item.calories)}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* ── FAVORITES (horizontal) ── */}
-      {favorites.length > 0 && (
-        <View style={styles.quickSection}>
-          <Text style={styles.quickTitle}>FAVORITES</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>
-            {favorites.slice(0, 10).map((fav) => (
-              <TouchableOpacity
-                key={fav.id}
-                style={styles.favChip}
-                onPress={() => instantLog({
-                  foodName: fav.name,
-                  calories: fav.calories,
-                  protein: fav.protein,
-                  carbs: fav.carbs,
-                  fat: fav.fat,
-                  servingSize: fav.servingSize,
-                })}
-                activeOpacity={0.6}
-              >
-                <Ionicons name="heart" size={14} color={COLORS.error} />
-                <Text style={styles.favChipName} numberOfLines={1}>{fav.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
     </ScrollView>
   );
 }
@@ -286,39 +191,116 @@ const makeStyles = (COLORS: any) => StyleSheet.create({
     paddingBottom: 100,
   },
 
-  // Header
-  dateLabel: {
-    fontSize: FONTS.sizes.xxl,
-    fontWeight: '800',
-    color: COLORS.text,
-    paddingHorizontal: SPACING.xl,
-    paddingTop: 60,
+  // ── Green gradient hero ──
+  heroGradient: {
+    paddingTop: 56,
+    paddingBottom: SPACING.xl,
+    alignItems: 'center',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  heroTitle: {
+    fontSize: FONTS.sizes.lg,
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: SPACING.md,
   },
+  ringRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.lg,
+  },
+  sideLabel: {
+    alignItems: 'center',
+    width: 60,
+  },
+  sideValue: {
+    fontSize: FONTS.sizes.lg,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  sideLabelText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
+  seeStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SPACING.md,
+    gap: 4,
+  },
+  seeStatsText: {
+    fontSize: FONTS.sizes.sm,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.5,
+  },
 
-  // Summary card
-  summaryCard: {
+  // ── Macro bars ──
+  macroSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.lg,
     backgroundColor: COLORS.surface,
     marginHorizontal: SPACING.lg,
-    borderRadius: BORDER_RADIUS.xl,
-    paddingVertical: SPACING.xxl,
-    paddingHorizontal: SPACING.lg,
-    alignItems: 'center',
-    marginBottom: SPACING.xxl,
+    marginTop: -12,
+    borderRadius: BORDER_RADIUS.lg,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 12,
+    shadowRadius: 8,
     elevation: 3,
   },
-  macroRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginTop: SPACING.xl,
+  macroItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  macroLabel: {
+    fontSize: FONTS.sizes.xs,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+  },
+  macroBarTrack: {
+    width: '80%',
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.border,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  macroBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  macroValues: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
 
-  // Meal diary sections
+  // ── Date header ──
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.xl,
+    marginBottom: SPACING.md,
+    gap: 6,
+  },
+  dateLabel: {
+    fontSize: FONTS.sizes.xs,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    letterSpacing: 1,
+  },
+
+  // ── Meal diary sections ──
   mealSection: {
     marginHorizontal: SPACING.lg,
     marginBottom: SPACING.md,
@@ -373,85 +355,5 @@ const makeStyles = (COLORS: any) => StyleSheet.create({
     fontSize: FONTS.sizes.md,
     color: COLORS.textTertiary,
     fontWeight: '500',
-  },
-
-  // Quick actions
-  quickSection: {
-    marginBottom: SPACING.lg,
-  },
-  quickTitle: {
-    fontSize: FONTS.sizes.xs,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: SPACING.sm,
-    paddingHorizontal: SPACING.xl,
-  },
-  quickRow: {
-    paddingHorizontal: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  quickChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.full,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  quickChipText: {
-    fontSize: FONTS.sizes.sm,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-
-  // Recent foods
-  recentRow: {
-    paddingHorizontal: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  recentChip: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    alignItems: 'center',
-    minWidth: 80,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  recentChipName: {
-    fontSize: FONTS.sizes.xs,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  recentChipCal: {
-    fontSize: FONTS.sizes.xs,
-    fontWeight: '700',
-    color: COLORS.primary,
-    marginTop: 2,
-  },
-
-  // Favorites
-  favChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.full,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    gap: 6,
-  },
-  favChipName: {
-    fontSize: FONTS.sizes.sm,
-    fontWeight: '600',
-    color: COLORS.text,
   },
 });

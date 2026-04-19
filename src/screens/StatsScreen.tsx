@@ -1,13 +1,18 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import { getMealsForRange, getWeights } from '../services/storageService';
-import { MealEntry, WeightEntry } from '../types';
+import {
+  getMealsForRange, getWeights,
+  getRecentFoodsRanked, getFavorites, getYesterdayMeals,
+  repeatYesterdayMeals, repeatLastMeal, quickAddCalories, addMeal,
+} from '../services/storageService';
+import { MealEntry, MealType, FoodItem, WeightEntry } from '../types';
 import { FONTS, SPACING, BORDER_RADIUS } from '../utils/constants';
 import { useTheme } from '../contexts/ThemeContext';
-import { formatDate } from '../utils/helpers';
+import { formatDate, generateId } from '../utils/helpers';
 
 const WIDTH = Dimensions.get('window').width;
 
@@ -20,6 +25,9 @@ export default function StatsScreen() {
   const [period, setPeriod] = useState<Period>('7d');
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [weights, setWeights] = useState<WeightEntry[]>([]);
+  const [recentFoods, setRecentFoods] = useState<MealEntry[]>([]);
+  const [favorites, setFavorites] = useState<FoodItem[]>([]);
+  const [yesterdayCount, setYesterdayCount] = useState(0);
 
   const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
 
@@ -28,13 +36,64 @@ export default function StatsScreen() {
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - days + 1);
-    const m = await getMealsForRange(start, end, user.uid);
-    const w = await getWeights(user.uid, days);
+    const [m, w, recent, favs, yesterday] = await Promise.all([
+      getMealsForRange(start, end, user.uid),
+      getWeights(user.uid, days),
+      getRecentFoodsRanked(user.uid, 10),
+      getFavorites(user.uid),
+      getYesterdayMeals(user.uid),
+    ]);
     setMeals(m);
     setWeights(w);
+    setRecentFoods(recent);
+    setFavorites(favs);
+    setYesterdayCount(yesterday.length);
   }, [user, days]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Quick actions
+  const handleQuickAdd = async (amount: number) => {
+    if (!user) return;
+    await quickAddCalories(amount, user.uid);
+    await load();
+  };
+
+  const handleRepeatYesterday = async () => {
+    if (!user || yesterdayCount === 0) return;
+    const count = await repeatYesterdayMeals(user.uid);
+    Alert.alert('Done', `Logged ${count} meals from yesterday.`);
+    await load();
+  };
+
+  const handleRepeatLastMeal = async () => {
+    if (!user) return;
+    const result = await repeatLastMeal(user.uid);
+    if (result) {
+      await load();
+    } else {
+      Alert.alert('No Meals', 'No previous meals found to repeat.');
+    }
+  };
+
+  const instantLog = async (entry: { foodName: string; calories: number; protein: number; carbs: number; fat: number; servingSize: string; mealType?: MealType }) => {
+    if (!user) return;
+    const now = Date.now();
+    await addMeal({
+      id: generateId(),
+      foodName: entry.foodName,
+      calories: entry.calories,
+      protein: entry.protein,
+      carbs: entry.carbs,
+      fat: entry.fat,
+      servingSize: entry.servingSize,
+      quantity: 1,
+      mealType: entry.mealType || 'snack',
+      date: now,
+      createdAt: now,
+    }, user.uid);
+    await load();
+  };
 
   // Group calories by day
   const dailyCals: { label: string; value: number }[] = [];
@@ -67,8 +126,91 @@ export default function StatsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Stats</Text>
+      <Text style={styles.title}>Progress</Text>
 
+      {/* ── QUICK ACTIONS ── */}
+      <View style={styles.quickSection}>
+        <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {[100, 250, 500].map((amt) => (
+            <TouchableOpacity
+              key={amt}
+              style={styles.quickChip}
+              onPress={() => handleQuickAdd(amt)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="flash-outline" size={16} color={COLORS.primary} />
+              <Text style={styles.quickChipText}>+{amt} kcal</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={[styles.quickChip, yesterdayCount === 0 && { opacity: 0.4 }]}
+            onPress={handleRepeatYesterday}
+            activeOpacity={0.7}
+            disabled={yesterdayCount === 0}
+          >
+            <Ionicons name="repeat-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickChipText}>Yesterday{yesterdayCount > 0 ? ` (${yesterdayCount})` : ''}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickChip}
+            onPress={handleRepeatLastMeal}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-redo-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.quickChipText}>Last Meal</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+
+      {/* ── RECENT FOODS ── */}
+      {recentFoods.length > 0 && (
+        <View style={styles.quickSection}>
+          <Text style={styles.sectionLabel}>RECENT</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {recentFoods.slice(0, 12).map((item, i) => (
+              <TouchableOpacity
+                key={`${item.id}_${i}`}
+                style={styles.recentChip}
+                onPress={() => instantLog(item)}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.recentChipName} numberOfLines={1}>{item.foodName}</Text>
+                <Text style={styles.recentChipCal}>{Math.round(item.calories)}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* ── FAVORITES ── */}
+      {favorites.length > 0 && (
+        <View style={styles.quickSection}>
+          <Text style={styles.sectionLabel}>FAVORITES</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {favorites.slice(0, 10).map((fav) => (
+              <TouchableOpacity
+                key={fav.id}
+                style={styles.favChip}
+                onPress={() => instantLog({
+                  foodName: fav.name,
+                  calories: fav.calories,
+                  protein: fav.protein,
+                  carbs: fav.carbs,
+                  fat: fav.fat,
+                  servingSize: fav.servingSize,
+                })}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="heart" size={14} color={COLORS.error} />
+                <Text style={styles.favChipName} numberOfLines={1}>{fav.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* ── PERIOD SELECTOR ── */}
       <View style={styles.periodRow}>
         {(['7d', '30d', '90d'] as Period[]).map((p) => (
           <TouchableOpacity
@@ -144,9 +286,89 @@ export default function StatsScreen() {
 
 const makeStyles = (COLORS: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { paddingHorizontal: SPACING.lg, paddingTop: 60, paddingBottom: 100 },
-  title: { fontSize: FONTS.sizes.xxxl, fontWeight: '700', color: COLORS.text },
-  periodRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg, marginBottom: SPACING.lg },
+  content: { paddingTop: 60, paddingBottom: 100 },
+  title: {
+    fontSize: FONTS.sizes.xxxl, fontWeight: '700', color: COLORS.text,
+    paddingHorizontal: SPACING.lg, marginBottom: SPACING.md,
+  },
+
+  // Quick actions / Recent / Favorites
+  quickSection: {
+    marginBottom: SPACING.lg,
+  },
+  sectionLabel: {
+    fontSize: FONTS.sizes.xs,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.xl,
+  },
+  chipRow: {
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  quickChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  quickChipText: {
+    fontSize: FONTS.sizes.sm,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  recentChip: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    alignItems: 'center',
+    minWidth: 80,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  recentChipName: {
+    fontSize: FONTS.sizes.xs,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  recentChipCal: {
+    fontSize: FONTS.sizes.xs,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginTop: 2,
+  },
+  favChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    gap: 6,
+  },
+  favChipName: {
+    fontSize: FONTS.sizes.sm,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+
+  // Period & charts
+  periodRow: {
+    flexDirection: 'row', gap: SPACING.sm,
+    marginBottom: SPACING.lg, paddingHorizontal: SPACING.lg,
+  },
   periodBtn: {
     flex: 1, paddingVertical: 10, borderRadius: 20,
     backgroundColor: COLORS.surface, alignItems: 'center',
@@ -156,7 +378,7 @@ const makeStyles = (COLORS: any) => StyleSheet.create({
   periodTextActive: { color: '#fff' },
   card: {
     backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg, marginBottom: SPACING.lg,
+    padding: SPACING.lg, marginBottom: SPACING.lg, marginHorizontal: SPACING.lg,
   },
   cardTitle: { fontSize: FONTS.sizes.lg, fontWeight: '600', color: COLORS.text },
   avgText: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: SPACING.xs },

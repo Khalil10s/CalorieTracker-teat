@@ -41,7 +41,7 @@ type TabName = 'dashboard' | 'water' | 'stats' | 'settings';
 const TABS: { name: TabName; icon: string; label: string }[] = [
   { name: 'dashboard', icon: 'home', label: 'Home' },
   { name: 'water', icon: 'water', label: 'Water' },
-  { name: 'stats', icon: 'stats-chart', label: 'Stats' },
+  { name: 'stats', icon: 'stats-chart', label: 'Progress' },
   { name: 'settings', icon: 'ellipsis-horizontal', label: 'More' },
 ];
 
@@ -79,6 +79,7 @@ export default function AppNavigator() {
             onSearch={(mealType) =>
               setScreen({ name: 'foodSearch', mealType })
             }
+            onNavigateStats={() => navigateTab('stats')}
           />
         );
       case 'weight':
